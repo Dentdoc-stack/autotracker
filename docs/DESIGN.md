@@ -1,0 +1,3 @@
+# Interface direction
+
+An office workbench for reviewing instructions and arranging follow-ups. The signature is a compact next-reminder panel connecting the meeting agenda to its Sunday/Monday adjustment. Dark forest navigation (#173c35), pale slate canvas (#f4f7f8), white working surfaces, mint selection (#e5f2ed), restrained brass accents (#bd934a), and ink (#263e44). Use a system sans-serif for readable forms and a restrained Georgia heading for the office identity. No promotional hero or decorative charts. Tables, dates, status labels, and actions take priority. Mobile collapses navigation into a horizontal scrollable toolbar and tables into readable scrolling panels.

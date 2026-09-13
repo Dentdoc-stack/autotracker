@@ -1,0 +1,7 @@
+project_id = "acs-g-tracker"
+
+[functions.reminder-dispatch]
+verify_jwt = false
+
+[functions.whatsapp-status]
+verify_jwt = false
