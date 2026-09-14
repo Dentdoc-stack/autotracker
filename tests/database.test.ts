@@ -74,6 +74,18 @@ beforeAll(async () => {
     ),
   );
   await db.exec(
+    readFileSync(
+      "supabase/migrations/202609140001_requeue_stale_manual.sql",
+      "utf8",
+    ),
+  );
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/202609140002_refresh_requeued_manual.sql",
+      "utf8",
+    ),
+  );
+  await db.exec(
     `insert into auth.users values ('${owner}'),('${editor}'),('${viewer}'); insert into public.memberships(id,name,role) values ('${owner}','Owner','owner'),('${editor}','Editor','editor'),('${viewer}','Viewer','viewer');`,
   );
 }, 60000);
@@ -278,6 +290,24 @@ describe.sequential("durable reminder queue", () => {
     await expect(
       db.query("update app_settings set automatic_enabled=true"),
     ).rejects.toThrow();
+  });
+  it("requeues a skipped manual occurrence after a fresh preview", async () => {
+    await asUser(owner);
+    await db.exec("reset role; update notification_messages set state='skipped' where state='mock'");
+    await asUser(owner);
+    const result = await db.query<{ data: number }>(
+      "select queue_manual_reminders($1::date,$2::uuid[],$3,$4::jsonb) data",
+      [due, [contact], "requeue-skipped-occurrence", JSON.stringify(expected)],
+    );
+    expect(result.rows[0].data).toBe(1);
+    expect(
+      (
+        await db.query<{ count: number }>(
+          "select count(*)::integer count from notification_messages where contact_id=$1 and due_date=$2 and state='mock'",
+          [contact, due],
+        )
+      ).rows[0].count,
+    ).toBeGreaterThan(0);
   });
   it("a later task adds only a new event, without repeating previous reminders", async () => {
     const dep = (

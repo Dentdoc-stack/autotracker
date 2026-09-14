@@ -1,5 +1,3 @@
-const twilio = require("twilio");
-
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const from = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
@@ -25,9 +23,9 @@ if (process.env.TWILIO_CONTENT_VARIABLES) {
   }
 }
 
-const client = twilio(accountSid, authToken);
-
 async function createMessage() {
+  const { default: twilio } = await import("twilio");
+  const client = twilio(accountSid, authToken);
   const message = await client.messages.create({
     contentSid,
     ...(Object.keys(contentVariables).length
