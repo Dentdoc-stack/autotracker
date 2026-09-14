@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
+import { buildVariables } from '../_shared/acs-template.ts';
 
 // Gateway JWT checks are replaced by this dedicated scheduler secret, never by a public key.
 Deno.serve(async(request:Request)=>{
@@ -19,17 +20,7 @@ Deno.serve(async(request:Request)=>{
   if(!['test','live'].includes(mode))return Response.json({error:'Invalid sending mode'},{status:503});
   const sid=Deno.env.get('TWILIO_ACCOUNT_SID'),token=Deno.env.get('TWILIO_AUTH_TOKEN'),from=Deno.env.get('TWILIO_WHATSAPP_FROM'),template=Deno.env.get('TWILIO_DIGEST_CONTENT_SID'),base=Deno.env.get('APP_BASE_URL');
   if(!sid||!token||!from||!template||!base)return Response.json({error:'Approved sender/template configuration incomplete'},{status:503});
-  const variableConfig=Deno.env.get('TWILIO_DIGEST_CONTENT_VARIABLES');
-  let contentVariables:string|undefined;
-  if(variableConfig&&variableConfig!=='none'){
-    try{
-      const parsed=JSON.parse(variableConfig);
-      if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('not an object');
-      contentVariables=JSON.stringify(parsed);
-    }catch{return Response.json({error:'TWILIO_DIGEST_CONTENT_VARIABLES must be valid JSON object or none'},{status:503});}
-  }else if(variableConfig!=='none'){
-    contentVariables=JSON.stringify({'1':'{{due_date}}','2':'{{summary}}','3':'{{item_count}}','4':'{{agenda_url}}'});
-  }
+  if(Deno.env.get('TWILIO_TEMPLATE_VERSION')!=='acs_followup_v1'||template==='HXfe5ab5f00277942d4d4200328b4d403c')return Response.json({error:'Configure the approved ACS template and TWILIO_TEMPLATE_VERSION=acs_followup_v1. Trial sample templates are not supported.'},{status:503});
   if(mode==='live'&&Deno.env.get('APP_ENV')!=='production')return Response.json({error:'Live mode is production-only'},{status:403});
   const allowed=new Set((Deno.env.get('TEST_RECIPIENT_ALLOWLIST')||'').split(',').map(x=>x.trim()).filter(Boolean));
   const claimed=await db.rpc('claim_reminder_batch');
@@ -46,12 +37,12 @@ Deno.serve(async(request:Request)=>{
       await db.from('notification_messages').update({state:'skipped',error:'Recipient is not in the test allowlist'}).eq('id',message.id);continue;
     }
     const callback=`${url}/functions/v1/whatsapp-status?messageId=${encodeURIComponent(message.id)}`;
-    const items=(message.body as string).split('\n\n').slice(1);
-    const summary=items.slice(0,5).map((item:string)=>item.replaceAll('\n',' — ')).join(' | ').slice(0,700);
-    const form=new URLSearchParams({From:from,To:`whatsapp:${message.phone_snapshot}`,ContentSid:template,StatusCallback:callback});
-    if(contentVariables){
-      form.set('ContentVariables',contentVariables.replace('{{due_date}}',message.due_date).replace('{{summary}}',summary).replace('{{item_count}}',String(message.item_keys.length)).replace('{{agenda_url}}',`${base}/`));
+    let variables:string;
+    try{variables=buildVariables(match.items);}
+    catch(error){
+      await db.from('notification_messages').update({state:'failed',error:error instanceof Error?error.message:'Unable to render ACS reminder',lease_until:null}).eq('id',message.id).eq('state','sending');continue;
     }
+    const form=new URLSearchParams({From:from,To:`whatsapp:${message.phone_snapshot}`,ContentSid:template,StatusCallback:callback,ContentVariables:variables});
     try{
       const response=await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,{method:'POST',headers:{Authorization:`Basic ${btoa(`${sid}:${token}`)}`,'Content-Type':'application/x-www-form-urlencoded'},body:form,signal:AbortSignal.timeout(20000)});
       const body=await response.json();

@@ -47,3 +47,7 @@ Browser test, while the dev server runs: `npm run test:e2e`. The local configura
 5. [AI handoff](docs/03-AI-HANDOFF.md)
 
 Never switch to real-recipient sending just to test whether credentials work. Use an owner-controlled allowlisted phone first. No GitHub remote or live deployment has been created by this build.
+
+## Correct WhatsApp reminder content
+
+See [ACS template activation](docs/ACS-WHATSAPP-TEMPLATE.md) for the exact Twilio template, variable mapping, and Supabase worker deployment. Trial appointment templates are not compatible with this worker.
