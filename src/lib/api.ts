@@ -14,7 +14,22 @@ export function checkRequest(request: Request, mutation = false) {
     const allowed = isLocalPreview()
       ? url.origin
       : process.env.APP_BASE_URL || url.origin;
-    if (!origin || origin !== allowed)
+    let originAllowed = origin === allowed;
+    if (!originAllowed && origin && process.env.APP_ENV === "staging") {
+      try {
+        const received = new URL(origin);
+        const configured = new URL(allowed);
+        const loopback = new Set(["localhost", "127.0.0.1", "[::1]"]);
+        originAllowed =
+          received.protocol === configured.protocol &&
+          received.port === configured.port &&
+          loopback.has(received.hostname) &&
+          loopback.has(configured.hostname);
+      } catch {
+        originAllowed = false;
+      }
+    }
+    if (!origin || !originAllowed)
       throw new Error("Request origin not permitted");
     if (!request.headers.get("content-type")?.includes("application/json"))
       throw new Error("JSON request required");
